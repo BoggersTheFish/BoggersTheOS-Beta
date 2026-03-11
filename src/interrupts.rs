@@ -118,7 +118,10 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStac
     use x86_64::instructions::port::Port;
 
     crate::ts::set_current_task_node(Some(INTERRUPT_NODE_ID));
-    println!("TS allow interrupt from node '{}' (weight 0.95)", INTERRUPT_NODE_ID);
+    println!(
+        "TS allow interrupt from node '{}' (weight 0.95)",
+        INTERRUPT_NODE_ID
+    );
     let mut port = Port::new(0x60);
     let scancode: u8 = unsafe { port.read() };
     crate::task::keyboard::add_scancode(scancode);

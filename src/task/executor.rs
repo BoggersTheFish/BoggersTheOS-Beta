@@ -1,9 +1,9 @@
 use super::{Task, TaskId};
-use alloc::{collections::BTreeMap, sync::Arc, vec::Vec, task::Wake};
+use crate::ts::{TS_REGISTRY, set_current_task_node};
+use alloc::{collections::BTreeMap, sync::Arc, task::Wake, vec::Vec};
 use core::cmp::Ordering;
 use core::task::{Context, Poll, Waker};
 use crossbeam_queue::ArrayQueue;
-use crate::ts::{set_current_task_node, TS_REGISTRY};
 
 pub struct Executor {
     tasks: BTreeMap<TaskId, Task>,

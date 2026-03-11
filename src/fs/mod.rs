@@ -1,9 +1,9 @@
 //! Minimal in-memory filesystem (ramdisk). TS RULE: filesystem ops gated by node weight — kernel supremacy.
 
+use crate::ts;
 use alloc::collections::BTreeMap;
 use alloc::string::String;
 use alloc::vec::Vec;
-use crate::ts;
 
 const RAMDISK_SIZE: usize = 2 * 1024 * 1024; // 2 MiB
 const MIN_WEIGHT_FS_WRITE: f32 = 0.6;

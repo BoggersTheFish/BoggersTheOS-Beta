@@ -46,7 +46,8 @@ impl FrameBufferWriter {
         if x >= self.info.width || y >= self.info.height {
             return;
         }
-        let offset = (y as u64 * self.info.stride as u64 + x as u64 * self.info.bytes_per_pixel as u64) as usize;
+        let offset = (y as u64 * self.info.stride as u64
+            + x as u64 * self.info.bytes_per_pixel as u64) as usize;
         unsafe {
             *self.info.base.add(offset) = color.0;
         }
