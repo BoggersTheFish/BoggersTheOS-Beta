@@ -6,9 +6,12 @@
 
 extern crate alloc;
 
+#[cfg(not(test))]
 use alloc::vec::Vec;
 use blog_os::println;
+#[cfg(not(test))]
 use blog_os::syscall::{self, SYS_DEBUG_HIERARCHY_DUMP, SYS_GET_NODE_WEIGHT, SYS_WRITE};
+#[cfg(not(test))]
 use blog_os::task::{Task, executor::Executor, keyboard};
 use bootloader::{BootInfo, entry_point};
 use core::panic::PanicInfo;
@@ -120,10 +123,12 @@ fn panic(info: &PanicInfo) -> ! {
     blog_os::test_panic_handler(info)
 }
 
+#[cfg(not(test))]
 async fn async_number() -> u32 {
     42
 }
 
+#[cfg(not(test))]
 async fn example_task() {
     let number = async_number().await;
     println!("async number: {}", number);
@@ -133,6 +138,7 @@ async fn example_task() {
 }
 
 /// Minimal "userspace" stub: invokes syscalls via dispatch (same path as int 0x80). Demo TS enforcement.
+#[cfg(not(test))]
 async fn syscall_stub_task() {
     // SYS_GET_NODE_WEIGHT (min 0.3) — user_tasks 0.5 allowed
     let w = syscall::dispatch(SYS_GET_NODE_WEIGHT, 0, 0, 0, 0);
@@ -152,6 +158,7 @@ async fn syscall_stub_task() {
 }
 
 /// Phase 5 demo: task_executor (weight 0.85) calls uart write — allowed (min 0.7).
+#[cfg(not(test))]
 async fn driver_uart_demo_task() {
     match blog_os::drivers::with_uart_driver(|uart| {
         uart.write(b"[uart] hello from task_executor (weight 0.85)\n")
@@ -163,6 +170,7 @@ async fn driver_uart_demo_task() {
 }
 
 /// Phase 6+9: gui_driver (0.6) draws framebuffer + persistent status (uptime, ramdisk file count).
+#[cfg(not(test))]
 async fn gui_demo_task() {
     use blog_os::gui::{
         COLOR_BLACK, COLOR_BLUE, COLOR_GREEN, COLOR_RED, COLOR_WHITE, COLOR_YELLOW,
@@ -207,6 +215,7 @@ async fn gui_demo_task() {
 }
 
 /// Phase 7 demo: gui_driver (0.6) — fs write/read/list allowed (write min 0.6, read/list min 0.5).
+#[cfg(not(test))]
 async fn fs_demo_task() {
     let node =
         blog_os::ts::current_node_id().unwrap_or_else(|| alloc::string::String::from("kernel"));
@@ -229,6 +238,7 @@ async fn fs_demo_task() {
 }
 
 /// Phase 7: user_tasks (0.5) attempts fs write — min 0.6 required → TS violation.
+#[cfg(not(test))]
 async fn fs_user_violation_task() {
     blog_os::println!("[fs_violation] user_tasks (0.5) attempting fs write (min 0.6)...");
     let wrote = blog_os::drivers::with_fs_driver(|fs| fs.write_file("denied.txt", b"x"));
@@ -238,6 +248,7 @@ async fn fs_user_violation_task() {
 }
 
 /// Phase 8 demo: task_executor (0.85) — net send (min 0.7) and recv (min 0.65) allowed; loopback.
+#[cfg(not(test))]
 async fn net_demo_task() {
     let node =
         blog_os::ts::current_node_id().unwrap_or_else(|| alloc::string::String::from("kernel"));
@@ -257,6 +268,7 @@ async fn net_demo_task() {
 }
 
 /// Phase 8: user_tasks (0.5) attempts net send — min 0.7 required → TS violation.
+#[cfg(not(test))]
 async fn net_violation_task() {
     blog_os::println!("[net_violation] user_tasks (0.5) attempting net send (min 0.7)...");
     let sent = blog_os::drivers::with_net_driver(|net| net.send_packet(b"denied"));
