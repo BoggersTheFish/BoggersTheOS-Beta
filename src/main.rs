@@ -39,19 +39,20 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
         reg.register_node("user_tasks", 0.5, Some("kernel"), alloc::vec![]);
     }
 
-    // Phase 5+6: TS-weighted drivers — register nodes, init in descending weight order
-    // Framebuffer at 0xa0000 (VGA mode 13h) when bootloader built with vga_320x200
-    let fb_info = {
-        let base_vaddr = phys_mem_offset + 0xa0000u64;
-        Some(blog_os::gui::FramebufferInfo {
-            base: base_vaddr.as_u64() as *mut u8,
-            width: 320,
-            height: 200,
-            bytes_per_pixel: 1,
-            stride: 320,
-        })
-    };
+    #[cfg(not(test))]
     {
+        // Phase 5+6: TS-weighted drivers — register nodes, init in descending weight order
+        // Framebuffer at 0xa0000 (VGA mode 13h) when bootloader built with vga_320x200
+        let fb_info = {
+            let base_vaddr = phys_mem_offset + 0xa0000u64;
+            Some(blog_os::gui::FramebufferInfo {
+                base: base_vaddr.as_u64() as *mut u8,
+                width: 320,
+                height: 200,
+                bytes_per_pixel: 1,
+                stride: 320,
+            })
+        };
         use blog_os::drivers::{register_and_init_drivers, FsDriver, GuiDriver, NetDriver, SimUart, TimerStub, VgaTextDriver};
         let drivers: alloc::vec::Vec<alloc::boxed::Box<dyn blog_os::drivers::Driver>> = alloc::vec![
             alloc::boxed::Box::new(VgaTextDriver::new()),
@@ -62,26 +63,34 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
             alloc::boxed::Box::new(GuiDriver::new(fb_info)),
         ];
         register_and_init_drivers(drivers);
+        // TS RULE: final polish maintains kernel supremacy — single hierarchy dump after all inits
+        blog_os::ts::print_hierarchy_dump();
+        println!("BoggersTheOS-Beta booted – kernel is alpha leader (weight 1.0)");
     }
-    // TS RULE: final polish maintains kernel supremacy — single hierarchy dump after all inits
-    blog_os::ts::print_hierarchy_dump();
-    println!("BoggersTheOS-Beta booted – kernel is alpha leader (weight 1.0)");
 
     #[cfg(test)]
-    test_main();
+    {
+        test_main();
+        // Ensure QEMU exits so CI doesn't time out (test_runner also calls exit_qemu; this is fallback).
+        blog_os::exit_qemu(blog_os::QemuExitCode::Success);
+        blog_os::hlt_loop();
+    }
 
-    let mut executor = Executor::new();
-    // Orchestrated order: high-weight demos first, then violation demos (weighted scheduling visible in TS logs)
-    executor.spawn(Task::new_with_node(keyboard::print_keypresses(), "task_executor"));
-    executor.spawn(Task::new_with_node(net_demo_task(), "task_executor"));
-    executor.spawn(Task::new_with_node(fs_demo_task(), "gui_driver"));
-    executor.spawn(Task::new_with_node(gui_demo_task(), "gui_driver"));
-    executor.spawn(Task::new_with_node(driver_uart_demo_task(), "task_executor"));
-    executor.spawn(Task::new(example_task()));
-    executor.spawn(Task::new(syscall_stub_task()));
-    executor.spawn(Task::new(fs_user_violation_task()));
-    executor.spawn(Task::new(net_violation_task()));
-    executor.run();
+    #[cfg(not(test))]
+    {
+        let mut executor = Executor::new();
+        // Orchestrated order: high-weight demos first, then violation demos (weighted scheduling visible in TS logs)
+        executor.spawn(Task::new_with_node(keyboard::print_keypresses(), "task_executor"));
+        executor.spawn(Task::new_with_node(net_demo_task(), "task_executor"));
+        executor.spawn(Task::new_with_node(fs_demo_task(), "gui_driver"));
+        executor.spawn(Task::new_with_node(gui_demo_task(), "gui_driver"));
+        executor.spawn(Task::new_with_node(driver_uart_demo_task(), "task_executor"));
+        executor.spawn(Task::new(example_task()));
+        executor.spawn(Task::new(syscall_stub_task()));
+        executor.spawn(Task::new(fs_user_violation_task()));
+        executor.spawn(Task::new(net_violation_task()));
+        executor.run();
+    }
 }
 
 /// This function is called on panic. TS RULE: show context (node/weight) for debugging.

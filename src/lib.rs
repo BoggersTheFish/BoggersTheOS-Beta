@@ -89,11 +89,12 @@ use bootloader::{BootInfo, entry_point};
 #[cfg(test)]
 entry_point!(test_kernel_main);
 
-/// Entry point for `cargo xtest`
+/// Entry point for `cargo test` (QEMU). Run tests then exit so CI doesn't time out.
 #[cfg(test)]
 fn test_kernel_main(_boot_info: &'static BootInfo) -> ! {
     init();
     test_main();
+    exit_qemu(QemuExitCode::Success);
     hlt_loop();
 }
 
