@@ -3,6 +3,7 @@ use lazy_static::lazy_static;
 use pic8259::ChainedPics;
 use spin;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
+use x86_64::PrivilegeLevel;
 
 pub const PIC_1_OFFSET: u8 = 32;
 pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
@@ -40,7 +41,8 @@ lazy_static! {
         idt[InterruptIndex::Timer.as_usize()].set_handler_fn(timer_interrupt_handler);
         idt[InterruptIndex::Keyboard.as_usize()].set_handler_fn(keyboard_interrupt_handler);
         // Syscall gate: int 0x80 — rax=num, rdi,rsi,rdx=args; return value in rax
-        idt[0x80].set_handler_fn(syscall_handler);
+        // Phase 1.3: TS RULE: gate callable from ring 3; kernel still enforces weight in dispatch — kernel supremacy.
+        idt[0x80].set_handler_fn(syscall_handler).set_privilege_level(PrivilegeLevel::Ring3);
         idt
     };
 }

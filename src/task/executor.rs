@@ -70,13 +70,22 @@ impl Executor {
         // Sort descending by weight (higher weight first); stable sort keeps order within same weight
         with_weights.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal));
 
+        // Phase 1.2: TS RULE: preemption point — when timer requested, re-queue all and reschedule by weight next cycle.
+        if crate::uptime::take_preempt_requested() {
+            crate::println!("TS schedule: preempt, rescheduling by weight");
+            for (tid, _) in &with_weights {
+                let _ = task_queue.push(*tid);
+            }
+            return;
+        }
+
         for (task_id, weight) in with_weights {
             let task = match tasks.get_mut(&task_id) {
                 Some(t) => t,
                 None => continue,
             };
             let node_id = task.node_id.clone();
-            drop(task); // release borrow before println (println may need alloc)
+            drop(task);
             crate::println!(
                 "TS schedule: picking task '{}' from node '{}' (weight {:.2})",
                 task_id.0,
@@ -91,7 +100,6 @@ impl Executor {
                 .entry(task_id)
                 .or_insert_with(|| TaskWaker::new(task_id, task_queue.clone()));
             let mut context = Context::from_waker(waker);
-            // TS RULE: set current context so alloc/interrupt checks see this task's node.
             set_current_task_node(Some(&task.node_id));
             match task.poll(&mut context) {
                 Poll::Ready(()) => {

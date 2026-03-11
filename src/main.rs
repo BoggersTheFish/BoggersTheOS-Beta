@@ -9,7 +9,7 @@ extern crate alloc;
 use alloc::vec::Vec;
 use blog_os::println;
 use blog_os::syscall::{self, SYS_DEBUG_HIERARCHY_DUMP, SYS_GET_NODE_WEIGHT, SYS_WRITE};
-use blog_os::task::{Task, executor::Executor, keyboard};
+use blog_os::task::{Task, executor::Executor, shell};
 use bootloader::{BootInfo, entry_point};
 use core::panic::PanicInfo;
 
@@ -37,20 +37,12 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
         reg.register_node("memory_manager", 0.9, Some("kernel"), alloc::vec![]);
         reg.register_node("task_executor", 0.85, Some("kernel"), alloc::vec![]);
         reg.register_node("user_tasks", 0.5, Some("kernel"), alloc::vec![]);
+        reg.register_node("shell", 0.6, Some("kernel"), alloc::vec![]);
     }
 
-    // Phase 5+6: TS-weighted drivers — register nodes, init in descending weight order
-    // Framebuffer at 0xa0000 (VGA mode 13h) when bootloader built with vga_320x200
-    let fb_info = {
-        let base_vaddr = phys_mem_offset + 0xa0000u64;
-        Some(blog_os::gui::FramebufferInfo {
-            base: base_vaddr.as_u64() as *mut u8,
-            width: 320,
-            height: 200,
-            bytes_per_pixel: 1,
-            stride: 320,
-        })
-    };
+    // Phase 5+6 + 1.1: TS-weighted drivers; framebuffer from boot_display (VGA 0xa0000 now; UEFI/multiboot2 later).
+    // TS RULE: display resource gated by gui_driver weight — kernel supremacy preserved.
+    let fb_info = blog_os::boot_display::framebuffer_info(boot_info, phys_mem_offset);
     {
         use blog_os::drivers::{register_and_init_drivers, FsDriver, GuiDriver, NetDriver, SimUart, TimerStub, VgaTextDriver};
         let drivers: alloc::vec::Vec<alloc::boxed::Box<dyn blog_os::drivers::Driver>> = alloc::vec![
@@ -72,7 +64,7 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 
     let mut executor = Executor::new();
     // Orchestrated order: high-weight demos first, then violation demos (weighted scheduling visible in TS logs)
-    executor.spawn(Task::new_with_node(keyboard::print_keypresses(), "task_executor"));
+    executor.spawn(Task::new_with_node(shell::shell_task(), "shell"));
     executor.spawn(Task::new_with_node(net_demo_task(), "task_executor"));
     executor.spawn(Task::new_with_node(fs_demo_task(), "gui_driver"));
     executor.spawn(Task::new_with_node(gui_demo_task(), "gui_driver"));

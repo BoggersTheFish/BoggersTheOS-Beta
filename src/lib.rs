@@ -9,7 +9,9 @@ extern crate alloc;
 use core::panic::PanicInfo;
 
 pub mod allocator;
+pub mod boot_display;
 pub mod drivers;
+pub mod elf_loader;
 pub mod fs;
 pub mod gdt;
 pub mod gui;
