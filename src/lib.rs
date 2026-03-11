@@ -9,11 +9,18 @@ extern crate alloc;
 use core::panic::PanicInfo;
 
 pub mod allocator;
+pub mod drivers;
+pub mod fs;
 pub mod gdt;
+pub mod gui;
 pub mod interrupts;
 pub mod memory;
+pub mod net;
 pub mod serial;
+pub mod syscall;
 pub mod task;
+pub mod ts;
+pub mod uptime;
 pub mod vga_buffer;
 
 pub fn init() {
@@ -21,6 +28,8 @@ pub fn init() {
     interrupts::init_idt();
     unsafe { interrupts::PICS.lock().initialize() };
     x86_64::instructions::interrupts::enable();
+    // TS RULE: kernel is alpha — register kernel node at 1.0 on boot.
+    ts::init();
 }
 pub trait Testable {
     fn run(&self) -> ();

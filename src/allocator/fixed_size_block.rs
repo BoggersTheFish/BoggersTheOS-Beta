@@ -58,8 +58,22 @@ impl FixedSizeBlockAllocator {
     }
 }
 
+/// TS RULE: enforce weight check before resource use — kernel supremacy.
+/// Small allocs (<= 256 bytes) require min weight 0.5; large allocs require 0.7.
+const HEAP_ALLOC_SIZE_THRESHOLD: usize = 256;
+const HEAP_MIN_WEIGHT_SMALL: f32 = 0.5;
+const HEAP_MIN_WEIGHT_LARGE: f32 = 0.7;
+
 unsafe impl GlobalAlloc for Locked<FixedSizeBlockAllocator> {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        let min_weight = if layout.size() <= HEAP_ALLOC_SIZE_THRESHOLD {
+            HEAP_MIN_WEIGHT_SMALL
+        } else {
+            HEAP_MIN_WEIGHT_LARGE
+        };
+        if crate::ts::enforce_min_weight("heap allocation", min_weight).is_err() {
+            return ptr::null_mut();
+        }
         let mut allocator = self.lock();
         match list_index(&layout) {
             Some(index) => {

@@ -1,4 +1,4 @@
-use crate::{gdt, hlt_loop, print, println};
+use crate::{gdt, hlt_loop, print, println, syscall};
 use lazy_static::lazy_static;
 use pic8259::ChainedPics;
 use spin;
@@ -39,6 +39,8 @@ lazy_static! {
         }
         idt[InterruptIndex::Timer.as_usize()].set_handler_fn(timer_interrupt_handler);
         idt[InterruptIndex::Keyboard.as_usize()].set_handler_fn(keyboard_interrupt_handler);
+        // Syscall gate: int 0x80 — rax=num, rdi,rsi,rdx=args; return value in rax
+        idt[0x80].set_handler_fn(syscall_handler);
         idt
     };
 }
@@ -71,17 +73,52 @@ extern "x86-interrupt" fn double_fault_handler(
     panic!("EXCEPTION: DOUBLE FAULT\n{:#?}", stack_frame);
 }
 
+/// TS RULE: interrupt handling runs as "interrupt_manager" node (weight 0.95).
+const INTERRUPT_NODE_ID: &str = "interrupt_manager";
+
 extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFrame) {
+    crate::ts::set_current_task_node(Some(INTERRUPT_NODE_ID));
+    crate::uptime::tick();
     print!(".");
     unsafe {
         PICS.lock()
             .notify_end_of_interrupt(InterruptIndex::Timer.as_u8());
+    }
+    crate::ts::set_current_task_node(None);
+}
+
+/// TS RULE: Syscall entry — caller weight checked in syscall::dispatch.
+extern "x86-interrupt" fn syscall_handler(_stack_frame: InterruptStackFrame) {
+    let num: u64;
+    let a: u64;
+    let b: u64;
+    let c: u64;
+    let d: u64;
+    unsafe {
+        core::arch::asm!(
+            "mov {}, rax",
+            "mov {}, rdi",
+            "mov {}, rsi",
+            "mov {}, rdx",
+            "mov {}, r10",
+            out(reg) num,
+            out(reg) a,
+            out(reg) b,
+            out(reg) c,
+            out(reg) d,
+        );
+    }
+    let ret = syscall::dispatch(num, a, b, c, d);
+    unsafe {
+        core::arch::asm!("mov rax, {}", in(reg) ret);
     }
 }
 
 extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStackFrame) {
     use x86_64::instructions::port::Port;
 
+    crate::ts::set_current_task_node(Some(INTERRUPT_NODE_ID));
+    println!("TS allow interrupt from node '{}' (weight 0.95)", INTERRUPT_NODE_ID);
     let mut port = Port::new(0x60);
     let scancode: u8 = unsafe { port.read() };
     crate::task::keyboard::add_scancode(scancode);
@@ -90,6 +127,7 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStac
         PICS.lock()
             .notify_end_of_interrupt(InterruptIndex::Keyboard.as_u8());
     }
+    crate::ts::set_current_task_node(None);
 }
 
 #[test_case]

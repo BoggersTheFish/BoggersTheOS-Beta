@@ -1,77 +1,96 @@
-# Blog OS (Async/Await)
+# BoggersTheOS-Beta – TS-Driven Strongest-Node OS
 
-[![Build Status](https://github.com/phil-opp/blog_os/workflows/Code/badge.svg?branch=post-12)](https://github.com/phil-opp/blog_os/actions?query=workflow%3A%22Code%22+branch%3Apost-12)
+**Motto:** *im the alpha im the leader im the one to trust*
 
-This repository contains the source code for the [Async/Await][post] post of the [Writing an OS in Rust](https://os.phil-opp.com) series.
+A minimal x86_64 OS in Rust (fork of [phil-opp/blog_os](https://github.com/phil-opp/blog_os) async-await / post-12). Every subsystem is a **node** with a weight; the **kernel is always the strongest node** at fixed weight 1.0. All conflicts are resolved by weight only — no bypasses.
 
-[post]: https://os.phil-opp.com/async-await/
+## Philosophy
 
-**Check out the [master branch](https://github.com/phil-opp/blog_os) for more information.**
+- **Kernel** = fixed weight **1.0**. Nothing can equal or override it.
+- Every major component (interrupts, memory, drivers, tasks) is a **node** with weight in `[0.0, 1.0]`.
+- Nodes self-organize in a hierarchy (parent/children); **conflicts** (scheduling, resource allocation, syscalls, interrupts) are resolved **purely by comparing node weights**: higher wins, kernel always wins ties.
+- **No fallback or override logic** that ignores weights — enforced with checks and panics.
 
-## Building
+## Features (example weights)
 
-This project requires a nightly version of Rust because it uses some unstable features. At least nightly _2020-07-15_ is required for building. You might need to run `rustup update nightly --force` to update to the latest nightly even if some components such as `rustfmt` are missing it.
+| Node               | Weight | Role                          |
+|--------------------|--------|-------------------------------|
+| kernel             | 1.0    | Alpha; all ties go to kernel  |
+| interrupt_manager  | 0.95   | Interrupt handling            |
+| memory_manager     | 0.9    | Memory subsystem              |
+| task_executor      | 0.85   | Async task scheduling         |
+| vga_driver         | 0.8    | VGA text                      |
+| timer_driver       | 0.82   | Timer stub                    |
+| network_stack      | 0.75   | Loopback net stub             |
+| uart_driver        | 0.75   | Sim UART                      |
+| ramdisk_fs         | 0.65   | 2 MiB in-memory FS            |
+| gui_driver         | 0.6    | 320×200 framebuffer           |
+| user_tasks         | 0.5    | Default for user-level tasks  |
 
-You can build the project by running:
+- **TS-weighted scheduler**: tasks ordered by node weight (higher polled first); logs e.g. `TS schedule: picking task 'X' from node 'Y' (weight Z)`.
+- **Syscalls** (int 0x80): write, exit, yield, get_node_weight, debug_hierarchy_dump, fs read/write/list, net send/recv — each gated by min weight.
+- **Drivers**: VGA, timer, UART, network (loopback), ramdisk FS, GUI; init order = descending weight.
+- **Demos**: FS write/read, net loopback send/recv, GUI rects + status text (uptime, file count); violation demos show denied ops for low-weight tasks.
 
-```
+## Build
+
+Requires **nightly Rust** and (for bootable image) **bootimage**.
+
+```bash
+# If toolchain is missing rust-src:
+rustup component add rust-src --toolchain nightly-x86_64-pc-windows-msvc
+
 cargo build
-```
-
-To create a bootable disk image from the compiled kernel, you need to install the [`bootimage`] tool:
-
-[`bootimage`]: https://github.com/rust-osdev/bootimage
-
-```
-cargo install bootimage
-```
-
-After installing, you can create the bootable disk image by running:
-
-```
 cargo bootimage
 ```
 
-This creates a bootable disk image in the `target/x86_64-blog_os/debug` directory.
+## Run (QEMU)
 
-Please file an issue if you have any problems.
+With **graphics** (for GUI framebuffer):
 
-## Running
-
-You can run the disk image in [QEMU] through:
-
-[QEMU]: https://www.qemu.org/
-
-```
+```bash
 cargo run
 ```
 
-[QEMU] and the [`bootimage`] tool need to be installed for this.
+Or run the built image in QEMU with a display. Use `-display none` only for headless/testing.
 
-You can also write the image to an USB stick for booting it on a real machine. On Linux, the command for this is:
+## Example output
+
+- **Hierarchy dump** (once at end of boot):
 
 ```
-dd if=target/x86_64-blog_os/debug/bootimage-blog_os.bin of=/dev/sdX && sync
+=== TS Hierarchy (kernel = alpha, weight 1.0) ===
+[kernel] (weight: 1.0 (kernel))
+  |- [interrupt_manager] (weight: 0.95)
+  |- [memory_manager] (weight: 0.90)
+  ...
+  |- [gui_driver] (weight: 0.60)
+  |- [user_tasks] (weight: 0.50)
+=== end TS Hierarchy ===
+BoggersTheOS-Beta booted – kernel is alpha leader (weight 1.0)
 ```
 
-Where `sdX` is the device name of your USB stick. **Be careful** to choose the correct device name, because everything on that device is overwritten.
+- **Scheduling**: `TS schedule: picking task 'N' from node 'task_executor' (weight 0.85)` (higher-weight tasks first).
+- **Violations**: `TS violation: fs write denied - node 'user_tasks' weight 0.50 < 0.60` (and similar for net send, heap alloc, etc.).
+- **GUI**: 320×200 with colored rects, “BoggersTheOS - kernel is alpha leader”, “TS Hierarchy Active – kernel weight 1.0”, “Uptime: X ticks”, “Files in ramdisk: Y”.
 
 ## Testing
 
-To run the unit and integration tests, execute `cargo xtest`.
+```bash
+cargo xtest
+```
 
 ## License
 
-Licensed under either of
+Dual-licensed under **MIT** or **Apache-2.0** (see [LICENSE-MIT](LICENSE-MIT), [LICENSE-APACHE](LICENSE-APACHE)).
 
-- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or
-  http://www.apache.org/licenses/LICENSE-2.0)
-- MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+## Future
 
-at your option.
+- Full smoltcp TCP/UDP stack
+- Virtio / real NIC drivers
+- Preemptive scheduling (still TS-weighted)
+- Real userspace (ring 3) with syscall ABI
 
-Note that this only applies to this git branch, other branches might be licensed differently.
+---
 
-### Contribution
-
-Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.
+*Kernel supremacy. Weight only. No fallbacks.*

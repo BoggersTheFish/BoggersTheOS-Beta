@@ -1,7 +1,9 @@
 use super::{Task, TaskId};
-use alloc::{collections::BTreeMap, sync::Arc, task::Wake};
+use alloc::{collections::BTreeMap, sync::Arc, vec::Vec, task::Wake};
+use core::cmp::Ordering;
 use core::task::{Context, Poll, Waker};
 use crossbeam_queue::ArrayQueue;
+use crate::ts::{set_current_task_node, TS_REGISTRY};
 
 pub struct Executor {
     tasks: BTreeMap<TaskId, Task>,
@@ -33,31 +35,72 @@ impl Executor {
         }
     }
 
+    /// TS RULE: scheduling prioritizes higher node weight — kernel supremacy.
+    /// Drain ready queue, sort by owning node's weight (desc), then poll in that order.
     fn run_ready_tasks(&mut self) {
-        // destructure `self` to avoid borrow checker errors
         let Self {
             tasks,
             task_queue,
             waker_cache,
         } = self;
 
-        while let Some(task_id) = task_queue.pop() {
+        // Drain task_queue into a vec so we can sort by weight
+        let mut ready: Vec<TaskId> = Vec::new();
+        while let Some(tid) = task_queue.pop() {
+            ready.push(tid);
+        }
+
+        if ready.is_empty() {
+            return;
+        }
+
+        // Get weight for each task from TS registry (by task's node_id)
+        let reg = TS_REGISTRY.lock();
+        let mut with_weights: Vec<(TaskId, f32)> = ready
+            .iter()
+            .filter_map(|tid| {
+                tasks.get(tid).map(|t| {
+                    let w = reg.get_weight(t.node_id.as_str()).unwrap_or(0.0);
+                    (*tid, w)
+                })
+            })
+            .collect();
+        drop(reg);
+
+        // Sort descending by weight (higher weight first); stable sort keeps order within same weight
+        with_weights.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal));
+
+        for (task_id, weight) in with_weights {
             let task = match tasks.get_mut(&task_id) {
-                Some(task) => task,
-                None => continue, // task no longer exists
+                Some(t) => t,
+                None => continue,
+            };
+            let node_id = task.node_id.clone();
+            drop(task); // release borrow before println (println may need alloc)
+            crate::println!(
+                "TS schedule: picking task '{}' from node '{}' (weight {:.2})",
+                task_id.0,
+                node_id,
+                weight
+            );
+            let task = match tasks.get_mut(&task_id) {
+                Some(t) => t,
+                None => continue,
             };
             let waker = waker_cache
                 .entry(task_id)
                 .or_insert_with(|| TaskWaker::new(task_id, task_queue.clone()));
             let mut context = Context::from_waker(waker);
+            // TS RULE: set current context so alloc/interrupt checks see this task's node.
+            set_current_task_node(Some(&task.node_id));
             match task.poll(&mut context) {
                 Poll::Ready(()) => {
-                    // task done -> remove it and its cached waker
                     tasks.remove(&task_id);
                     waker_cache.remove(&task_id);
                 }
                 Poll::Pending => {}
             }
+            set_current_task_node(None);
         }
     }
 
