@@ -6,9 +6,12 @@
 
 extern crate alloc;
 
+#[cfg(not(test))]
 use alloc::vec::Vec;
 use blog_os::println;
+#[cfg(not(test))]
 use blog_os::syscall::{self, SYS_DEBUG_HIERARCHY_DUMP, SYS_GET_NODE_WEIGHT, SYS_WRITE};
+#[cfg(not(test))]
 use blog_os::task::{Task, executor::Executor, shell};
 use bootloader::{BootInfo, entry_point};
 use core::panic::PanicInfo;
@@ -40,10 +43,11 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
         reg.register_node("shell", 0.6, Some("kernel"), alloc::vec![]);
     }
 
-    // Phase 5+6 + 1.1: TS-weighted drivers; framebuffer from boot_display (VGA 0xa0000 now; UEFI/multiboot2 later).
-    // TS RULE: display resource gated by gui_driver weight — kernel supremacy preserved.
-    let fb_info = blog_os::boot_display::framebuffer_info(boot_info, phys_mem_offset);
+    #[cfg(not(test))]
     {
+        // Phase 5+6 + 1.1: TS-weighted drivers; framebuffer from boot_display (VGA 0xa0000 now; UEFI/multiboot2 later).
+        // TS RULE: display resource gated by gui_driver weight — kernel supremacy preserved.
+        let fb_info = blog_os::boot_display::framebuffer_info(boot_info, phys_mem_offset);
         use blog_os::drivers::{
             FsDriver, GuiDriver, NetDriver, SimUart, TimerStub, VgaTextDriver,
             register_and_init_drivers,
@@ -57,29 +61,37 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
             alloc::boxed::Box::new(GuiDriver::new(fb_info)),
         ];
         register_and_init_drivers(drivers);
+        // TS RULE: final polish maintains kernel supremacy — single hierarchy dump after all inits
+        blog_os::ts::print_hierarchy_dump();
+        println!("BoggersTheOS-Beta booted – kernel is alpha leader (weight 1.0)");
     }
-    // TS RULE: final polish maintains kernel supremacy — single hierarchy dump after all inits
-    blog_os::ts::print_hierarchy_dump();
-    println!("BoggersTheOS-Beta booted – kernel is alpha leader (weight 1.0)");
 
     #[cfg(test)]
-    test_main();
+    {
+        test_main();
+        // Ensure QEMU exits so CI doesn't time out (test_runner also calls exit_qemu; this is fallback).
+        blog_os::exit_qemu(blog_os::QemuExitCode::Success);
+        blog_os::hlt_loop();
+    }
 
-    let mut executor = Executor::new();
-    // Orchestrated order: high-weight demos first, then violation demos (weighted scheduling visible in TS logs)
-    executor.spawn(Task::new_with_node(shell::shell_task(), "shell"));
-    executor.spawn(Task::new_with_node(net_demo_task(), "task_executor"));
-    executor.spawn(Task::new_with_node(fs_demo_task(), "gui_driver"));
-    executor.spawn(Task::new_with_node(gui_demo_task(), "gui_driver"));
-    executor.spawn(Task::new_with_node(
-        driver_uart_demo_task(),
-        "task_executor",
-    ));
-    executor.spawn(Task::new(example_task()));
-    executor.spawn(Task::new(syscall_stub_task()));
-    executor.spawn(Task::new(fs_user_violation_task()));
-    executor.spawn(Task::new(net_violation_task()));
-    executor.run();
+    #[cfg(not(test))]
+    {
+        let mut executor = Executor::new();
+        // Orchestrated order: high-weight demos first, then violation demos (weighted scheduling visible in TS logs)
+        executor.spawn(Task::new_with_node(shell::shell_task(), "shell"));
+        executor.spawn(Task::new_with_node(net_demo_task(), "task_executor"));
+        executor.spawn(Task::new_with_node(fs_demo_task(), "gui_driver"));
+        executor.spawn(Task::new_with_node(gui_demo_task(), "gui_driver"));
+        executor.spawn(Task::new_with_node(
+            driver_uart_demo_task(),
+            "task_executor",
+        ));
+        executor.spawn(Task::new(example_task()));
+        executor.spawn(Task::new(syscall_stub_task()));
+        executor.spawn(Task::new(fs_user_violation_task()));
+        executor.spawn(Task::new(net_violation_task()));
+        executor.run();
+    }
 }
 
 /// This function is called on panic. TS RULE: show context (node/weight) for debugging.
@@ -100,10 +112,12 @@ fn panic(info: &PanicInfo) -> ! {
     blog_os::test_panic_handler(info)
 }
 
+#[cfg(not(test))]
 async fn async_number() -> u32 {
     42
 }
 
+#[cfg(not(test))]
 async fn example_task() {
     let number = async_number().await;
     println!("async number: {}", number);
@@ -113,6 +127,7 @@ async fn example_task() {
 }
 
 /// Minimal "userspace" stub: invokes syscalls via dispatch (same path as int 0x80). Demo TS enforcement.
+#[cfg(not(test))]
 async fn syscall_stub_task() {
     // SYS_GET_NODE_WEIGHT (min 0.3) — user_tasks 0.5 allowed
     let w = syscall::dispatch(SYS_GET_NODE_WEIGHT, 0, 0, 0, 0);
@@ -132,6 +147,7 @@ async fn syscall_stub_task() {
 }
 
 /// Phase 5 demo: task_executor (weight 0.85) calls uart write — allowed (min 0.7).
+#[cfg(not(test))]
 async fn driver_uart_demo_task() {
     match blog_os::drivers::with_uart_driver(|uart| {
         uart.write(b"[uart] hello from task_executor (weight 0.85)\n")
@@ -143,6 +159,7 @@ async fn driver_uart_demo_task() {
 }
 
 /// Phase 6+9: gui_driver (0.6) draws framebuffer + persistent status (uptime, ramdisk file count).
+#[cfg(not(test))]
 async fn gui_demo_task() {
     use blog_os::gui::{
         COLOR_BLACK, COLOR_BLUE, COLOR_GREEN, COLOR_RED, COLOR_WHITE, COLOR_YELLOW,
@@ -187,6 +204,7 @@ async fn gui_demo_task() {
 }
 
 /// Phase 7 demo: gui_driver (0.6) — fs write/read/list allowed (write min 0.6, read/list min 0.5).
+#[cfg(not(test))]
 async fn fs_demo_task() {
     let node =
         blog_os::ts::current_node_id().unwrap_or_else(|| alloc::string::String::from("kernel"));
@@ -209,6 +227,7 @@ async fn fs_demo_task() {
 }
 
 /// Phase 7: user_tasks (0.5) attempts fs write — min 0.6 required → TS violation.
+#[cfg(not(test))]
 async fn fs_user_violation_task() {
     blog_os::println!("[fs_violation] user_tasks (0.5) attempting fs write (min 0.6)...");
     let wrote = blog_os::drivers::with_fs_driver(|fs| fs.write_file("denied.txt", b"x"));
@@ -218,6 +237,7 @@ async fn fs_user_violation_task() {
 }
 
 /// Phase 8 demo: task_executor (0.85) — net send (min 0.7) and recv (min 0.65) allowed; loopback.
+#[cfg(not(test))]
 async fn net_demo_task() {
     let node =
         blog_os::ts::current_node_id().unwrap_or_else(|| alloc::string::String::from("kernel"));
@@ -237,6 +257,7 @@ async fn net_demo_task() {
 }
 
 /// Phase 8: user_tasks (0.5) attempts net send — min 0.7 required → TS violation.
+#[cfg(not(test))]
 async fn net_violation_task() {
     blog_os::println!("[net_violation] user_tasks (0.5) attempting net send (min 0.7)...");
     let sent = blog_os::drivers::with_net_driver(|net| net.send_packet(b"denied"));

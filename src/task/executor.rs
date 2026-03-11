@@ -85,7 +85,7 @@ impl Executor {
                 None => continue,
             };
             let node_id = task.node_id.clone();
-            let _ = task;
+            let _ = task; // release borrow before println (println may need alloc)
             crate::println!(
                 "TS schedule: picking task '{}' from node '{}' (weight {:.2})",
                 task_id.0,
