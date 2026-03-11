@@ -2,8 +2,8 @@ use crate::{gdt, hlt_loop, print, println, syscall};
 use lazy_static::lazy_static;
 use pic8259::ChainedPics;
 use spin;
-use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
 use x86_64::PrivilegeLevel;
+use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame, PageFaultErrorCode};
 
 pub const PIC_1_OFFSET: u8 = 32;
 pub const PIC_2_OFFSET: u8 = PIC_1_OFFSET + 8;
@@ -120,7 +120,10 @@ extern "x86-interrupt" fn keyboard_interrupt_handler(_stack_frame: InterruptStac
     use x86_64::instructions::port::Port;
 
     crate::ts::set_current_task_node(Some(INTERRUPT_NODE_ID));
-    println!("TS allow interrupt from node '{}' (weight 0.95)", INTERRUPT_NODE_ID);
+    println!(
+        "TS allow interrupt from node '{}' (weight 0.95)",
+        INTERRUPT_NODE_ID
+    );
     let mut port = Port::new(0x60);
     let scancode: u8 = unsafe { port.read() };
     crate::task::keyboard::add_scancode(scancode);

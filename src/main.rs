@@ -44,7 +44,10 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     // TS RULE: display resource gated by gui_driver weight — kernel supremacy preserved.
     let fb_info = blog_os::boot_display::framebuffer_info(boot_info, phys_mem_offset);
     {
-        use blog_os::drivers::{register_and_init_drivers, FsDriver, GuiDriver, NetDriver, SimUart, TimerStub, VgaTextDriver};
+        use blog_os::drivers::{
+            FsDriver, GuiDriver, NetDriver, SimUart, TimerStub, VgaTextDriver,
+            register_and_init_drivers,
+        };
         let drivers: alloc::vec::Vec<alloc::boxed::Box<dyn blog_os::drivers::Driver>> = alloc::vec![
             alloc::boxed::Box::new(VgaTextDriver::new()),
             alloc::boxed::Box::new(TimerStub::new()),
@@ -68,7 +71,10 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     executor.spawn(Task::new_with_node(net_demo_task(), "task_executor"));
     executor.spawn(Task::new_with_node(fs_demo_task(), "gui_driver"));
     executor.spawn(Task::new_with_node(gui_demo_task(), "gui_driver"));
-    executor.spawn(Task::new_with_node(driver_uart_demo_task(), "task_executor"));
+    executor.spawn(Task::new_with_node(
+        driver_uart_demo_task(),
+        "task_executor",
+    ));
     executor.spawn(Task::new(example_task()));
     executor.spawn(Task::new(syscall_stub_task()));
     executor.spawn(Task::new(fs_user_violation_task()));
@@ -80,7 +86,8 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 #[cfg(not(test))]
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    let node = blog_os::ts::current_node_id().unwrap_or_else(|| alloc::string::String::from("kernel"));
+    let node =
+        blog_os::ts::current_node_id().unwrap_or_else(|| alloc::string::String::from("kernel"));
     let w = blog_os::ts::current_node_weight();
     println!("[panic] node={} weight={:.2}", node, w);
     println!("{}", info);
@@ -115,13 +122,7 @@ async fn syscall_stub_task() {
     }
     // SYS_WRITE (min 0.3) — allowed
     let msg = b"hello from syscall stub\n";
-    syscall::dispatch(
-        SYS_WRITE,
-        msg.as_ptr() as u64,
-        msg.len() as u64,
-        0,
-        0,
-    );
+    syscall::dispatch(SYS_WRITE, msg.as_ptr() as u64, msg.len() as u64, 0, 0);
     // SYS_DEBUG_HIERARCHY_DUMP (min 0.6) — user_tasks 0.5 < 0.6 -> TS violation
     println!("[stub] attempting sys_debug_hierarchy_dump (min weight 0.6)...");
     let ret = syscall::dispatch(SYS_DEBUG_HIERARCHY_DUMP, 0, 0, 0, 0);
@@ -132,7 +133,9 @@ async fn syscall_stub_task() {
 
 /// Phase 5 demo: task_executor (weight 0.85) calls uart write — allowed (min 0.7).
 async fn driver_uart_demo_task() {
-    match blog_os::drivers::with_uart_driver(|uart| uart.write(b"[uart] hello from task_executor (weight 0.85)\n")) {
+    match blog_os::drivers::with_uart_driver(|uart| {
+        uart.write(b"[uart] hello from task_executor (weight 0.85)\n")
+    }) {
         Some(Ok(())) => blog_os::println!("[driver_demo] uart write succeeded (TS allowed)"),
         Some(Err(())) => blog_os::println!("[driver_demo] uart write denied (TS violation)"),
         None => blog_os::println!("[driver_demo] no uart driver"),
@@ -141,7 +144,9 @@ async fn driver_uart_demo_task() {
 
 /// Phase 6+9: gui_driver (0.6) draws framebuffer + persistent status (uptime, ramdisk file count).
 async fn gui_demo_task() {
-    use blog_os::gui::{COLOR_BLACK, COLOR_BLUE, COLOR_GREEN, COLOR_RED, COLOR_WHITE, COLOR_YELLOW};
+    use blog_os::gui::{
+        COLOR_BLACK, COLOR_BLUE, COLOR_GREEN, COLOR_RED, COLOR_WHITE, COLOR_YELLOW,
+    };
     let uptime_ticks = blog_os::uptime::ticks();
     let file_count = blog_os::drivers::with_fs_driver(|fs| fs.list_files().len()).unwrap_or(0);
     let result = blog_os::drivers::with_gui_driver(|gui| {
@@ -153,18 +158,29 @@ async fn gui_demo_task() {
         gui.draw_rect(100, 10, 80, 40, COLOR_GREEN).ok()?;
         gui.draw_rect(190, 10, 80, 40, COLOR_RED).ok()?;
         gui.draw_rect(10, 60, 300, 30, COLOR_YELLOW).ok()?;
-        gui.draw_text(20, 70, "BoggersTheOS - kernel is alpha leader", COLOR_BLACK).ok()?;
-        gui.draw_text(20, 90, "BoggersTheOS Beta", COLOR_WHITE).ok()?;
-        gui.draw_text(20, 100, "TS Hierarchy Active – kernel weight 1.0", COLOR_WHITE).ok()?;
+        gui.draw_text(20, 70, "BoggersTheOS - kernel is alpha leader", COLOR_BLACK)
+            .ok()?;
+        gui.draw_text(20, 90, "BoggersTheOS Beta", COLOR_WHITE)
+            .ok()?;
+        gui.draw_text(
+            20,
+            100,
+            "TS Hierarchy Active – kernel weight 1.0",
+            COLOR_WHITE,
+        )
+        .ok()?;
         let uptime_str = alloc::format!("Uptime: {} ticks", uptime_ticks);
         gui.draw_text(20, 110, &uptime_str, COLOR_WHITE).ok()?;
         let files_str = alloc::format!("Files in ramdisk: {}", file_count);
         gui.draw_text(20, 120, &files_str, COLOR_WHITE).ok()?;
         Some(())
     });
-    let node = blog_os::ts::current_node_id().unwrap_or_else(|| alloc::string::String::from("kernel"));
+    let node =
+        blog_os::ts::current_node_id().unwrap_or_else(|| alloc::string::String::from("kernel"));
     match result {
-        Some(Some(())) => blog_os::println!("[{}] gui framebuffer + status drawn (TS allowed)", node),
+        Some(Some(())) => {
+            blog_os::println!("[{}] gui framebuffer + status drawn (TS allowed)", node)
+        }
         Some(None) => blog_os::println!("[{}] gui draw failed or no framebuffer", node),
         None => blog_os::println!("[{}] no gui driver", node),
     }
@@ -172,7 +188,8 @@ async fn gui_demo_task() {
 
 /// Phase 7 demo: gui_driver (0.6) — fs write/read/list allowed (write min 0.6, read/list min 0.5).
 async fn fs_demo_task() {
-    let node = blog_os::ts::current_node_id().unwrap_or_else(|| alloc::string::String::from("kernel"));
+    let node =
+        blog_os::ts::current_node_id().unwrap_or_else(|| alloc::string::String::from("kernel"));
     let msg = b"TS is alpha supremacy";
     let wrote = blog_os::drivers::with_fs_driver(|fs| fs.write_file("hello.txt", msg));
     match wrote {
@@ -202,7 +219,8 @@ async fn fs_user_violation_task() {
 
 /// Phase 8 demo: task_executor (0.85) — net send (min 0.7) and recv (min 0.65) allowed; loopback.
 async fn net_demo_task() {
-    let node = blog_os::ts::current_node_id().unwrap_or_else(|| alloc::string::String::from("kernel"));
+    let node =
+        blog_os::ts::current_node_id().unwrap_or_else(|| alloc::string::String::from("kernel"));
     let payload = b"TS alpha packet supremacy";
     let sent = blog_os::drivers::with_net_driver(|net| net.send_packet(payload));
     if let Some(Ok(n)) = sent {

@@ -1,10 +1,10 @@
 //! Minimal console shell. Phase 1.5: line buffer, dump/run/exit. TS RULE: shell node 0.6 — kernel supremacy.
 
-use crate::{println, ts, drivers};
+use crate::{drivers, println, ts};
 use alloc::vec::Vec;
 use core::str;
-use pc_keyboard::{DecodedKey, HandleControl, Keyboard, ScancodeSet1, layouts};
 use futures_util::StreamExt;
+use pc_keyboard::{DecodedKey, HandleControl, Keyboard, ScancodeSet1, layouts};
 
 use super::keyboard::ScancodeStream;
 
@@ -71,7 +71,10 @@ async fn run_cmd(name: &str) {
     match data {
         Some(Some(bytes)) => {
             if let Some(elf) = crate::elf_loader::parse_elf64(&bytes) {
-                println!("run {}: ELF64 entry 0x{:x} (load to user space not yet implemented)", name, elf.entry_point);
+                println!(
+                    "run {}: ELF64 entry 0x{:x} (load to user space not yet implemented)",
+                    name, elf.entry_point
+                );
             } else {
                 println!("run {}: not a valid ELF64", name);
             }

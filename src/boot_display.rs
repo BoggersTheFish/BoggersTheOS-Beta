@@ -15,7 +15,10 @@ const VGA_MODE13_STRIDE: u32 = 320;
 
 /// Returns framebuffer info for the kernel. With bootloader 0.9 + vga_320x200, uses VGA 0xa0000.
 /// Future: parse BootInfo.framebuffer (when present) or multiboot2/UEFI GOP for real resolution.
-pub fn framebuffer_info(boot_info: &BootInfo, phys_mem_offset: VirtAddr) -> Option<FramebufferInfo> {
+pub fn framebuffer_info(
+    boot_info: &BootInfo,
+    phys_mem_offset: VirtAddr,
+) -> Option<FramebufferInfo> {
     let _ = boot_info; // reserved for future BootInfo.framebuffer or UEFI handoff
     let base_vaddr = phys_mem_offset + VGA_FB_PHYS;
     Some(FramebufferInfo {

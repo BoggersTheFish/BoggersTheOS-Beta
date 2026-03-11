@@ -1,15 +1,15 @@
 //! TS-weighted driver model. Drivers register as nodes; init order = descending weight — kernel supremacy.
 
+use crate::fs::Ramdisk;
+use crate::gui::{Color as GuiColor, FrameBufferWriter, FramebufferInfo};
+use crate::net::NetStack;
+use crate::println;
+use crate::ts::{self, TS_REGISTRY};
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::cmp::Ordering;
-use crate::fs::Ramdisk;
-use crate::gui::{FrameBufferWriter, FramebufferInfo, Color as GuiColor};
-use crate::net::NetStack;
-use crate::ts::{self, TS_REGISTRY};
-use crate::println;
-use spin::Mutex;
 use lazy_static::lazy_static;
+use spin::Mutex;
 
 /// TS RULE: drivers initialized by descending node weight — kernel supremacy.
 pub trait Driver: Send + core::any::Any {
@@ -292,7 +292,11 @@ pub fn register_and_init_drivers(mut drivers: Vec<Box<dyn Driver>>) {
         let mut reg = TS_REGISTRY.lock();
         for d in drivers.iter() {
             let w = d.weight();
-            assert!(w >= 0.0 && w < 1.0, "TS: driver weight must be in [0, 1), got {}", w);
+            assert!(
+                w >= 0.0 && w < 1.0,
+                "TS: driver weight must be in [0, 1), got {}",
+                w
+            );
             reg.register_node(d.node_id(), w, Some("kernel"), alloc::vec![]);
         }
     }

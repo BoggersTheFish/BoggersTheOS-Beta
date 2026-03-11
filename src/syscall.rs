@@ -2,8 +2,8 @@
 //!
 //! Invoked via int 0x80 (rax = number, rdi/rsi/rdx = args). Also callable from kernel stub task.
 
-use crate::ts::{self, current_node_weight};
 use crate::println;
+use crate::ts::{self, current_node_weight};
 
 /// Syscall numbers (match userspace / int 0x80 convention).
 pub const SYS_WRITE: u64 = 0;
@@ -187,7 +187,10 @@ fn sys_fs_write(filename_ptr: u64, filename_len: u64, data_ptr: u64, data_len: u
     let filename_str = core::str::from_utf8(filename).unwrap_or("");
     let data = unsafe { core::slice::from_raw_parts(data_ptr as *const u8, data_len_usize) };
     let result = crate::drivers::with_fs_driver(|fs| fs.write_file(filename_str, data));
-    result.and_then(|r| r.ok()).map(|n| n as u64).unwrap_or(u64::MAX)
+    result
+        .and_then(|r| r.ok())
+        .map(|n| n as u64)
+        .unwrap_or(u64::MAX)
 }
 
 /// Returns number of files in ramdisk.
@@ -207,7 +210,10 @@ fn sys_net_send(data_ptr: u64, data_len: u64) -> u64 {
     }
     let data = unsafe { core::slice::from_raw_parts(data_ptr as *const u8, len) };
     let result = crate::drivers::with_net_driver(|net| net.send_packet(data));
-    result.and_then(|r| r.ok()).map(|n| n as u64).unwrap_or(u64::MAX)
+    result
+        .and_then(|r| r.ok())
+        .map(|n| n as u64)
+        .unwrap_or(u64::MAX)
 }
 
 /// a=buffer_ptr, b=buffer_len. Copies received packet into buffer, returns bytes copied or u64::MAX.

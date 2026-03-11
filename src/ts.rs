@@ -49,14 +49,11 @@ impl TsRegistry {
     /// Register a new node by string id.
     /// TS RULE: weight comparison ONLY — no bypass. Weights must be in [0.0, 1.0].
     /// TS RULE: only "kernel" may have weight 1.0; otherwise panic (kernel supremacy).
-    pub fn register_node(
-        &mut self,
-        id: &str,
-        weight: f32,
-        parent: Option<&str>,
-        deps: Vec<&str>,
-    ) {
-        assert!(weight >= 0.0 && weight <= 1.0, "TS: weight must be in [0.0, 1.0]");
+    pub fn register_node(&mut self, id: &str, weight: f32, parent: Option<&str>, deps: Vec<&str>) {
+        assert!(
+            weight >= 0.0 && weight <= 1.0,
+            "TS: weight must be in [0.0, 1.0]"
+        );
         if (weight - KERNEL_WEIGHT).abs() < 0.001 && id != KERNEL_NODE_ID {
             panic!("TS violation: only kernel may have weight 1.0");
         }
@@ -164,7 +161,10 @@ pub fn enforce_min_weight(op: &str, min_weight: f32) -> Result<(), ()> {
     if weight < min_weight {
         crate::println!(
             "TS violation: {} denied - node '{}' weight {:.2} < {:.2}",
-            op, node_str, weight, min_weight
+            op,
+            node_str,
+            weight,
+            min_weight
         );
         return Err(());
     }
@@ -212,7 +212,10 @@ fn print_node_tree(reg: &TsRegistry, id: &str, depth: usize) {
         alloc::format!("{:.2}", node.weight)
     };
     let prefix = if depth == 0 { "" } else { "|- " };
-    println!("{}{}[{}] (weight: {})", indent, prefix, node.id, weight_display);
+    println!(
+        "{}{}[{}] (weight: {})",
+        indent, prefix, node.id, weight_display
+    );
     let children = reg.children(id);
     let mut sorted_children = children;
     sorted_children.sort_by(|a, b| {

@@ -5,9 +5,9 @@
 #[allow(unused_imports)]
 use smoltcp::phy::{Loopback, Medium};
 
+use crate::ts;
 use alloc::collections::VecDeque;
 use alloc::vec::Vec;
-use crate::ts;
 
 const MIN_WEIGHT_NET_SEND: f32 = 0.7;
 const MIN_WEIGHT_NET_RECV: f32 = 0.65;

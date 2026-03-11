@@ -2,7 +2,7 @@
 //! Incremented by timer interrupt; read by GUI/status.
 //! Phase 1.2: preemption request flag for TS-weighted time-slicing.
 
-use core::sync::atomic::{AtomicU64, AtomicBool, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 static UPTIME_TICKS: AtomicU64 = AtomicU64::new(0);
 
