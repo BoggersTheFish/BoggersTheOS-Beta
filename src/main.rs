@@ -24,6 +24,10 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     use x86_64::VirtAddr;
 
     println!("Hello World{}", "!");
+    // #region agent log
+    #[cfg(test)]
+    blog_os::serial_println!("[DBG c63425] bin::kernel_main entered (cfg(test))");
+    // #endregion
 
     let phys_mem_offset = VirtAddr::new(boot_info.physical_memory_offset);
     let mut mapper = unsafe { memory::init(phys_mem_offset) };
@@ -68,7 +72,13 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
 
     #[cfg(test)]
     {
+        // #region agent log
+        blog_os::serial_println!("[DBG c63425] bin::test_main about to run");
+        // #endregion
         test_main();
+        // #region agent log
+        blog_os::serial_println!("[DBG c63425] bin::test_main returned; exiting qemu");
+        // #endregion
         // Ensure QEMU exits so CI doesn't time out (test_runner also calls exit_qemu; this is fallback).
         blog_os::exit_qemu(blog_os::QemuExitCode::Success);
         blog_os::hlt_loop();

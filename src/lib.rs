@@ -74,6 +74,10 @@ pub fn exit_qemu(exit_code: QemuExitCode) {
     use x86_64::instructions::port::Port;
 
     unsafe {
+        // #region agent log
+        #[cfg(test)]
+        serial_println!("[DBG c63425] exit_qemu write code={:?}", exit_code);
+        // #endregion
         let mut port = Port::new(0xf4);
         port.write(exit_code as u32);
     }
@@ -98,13 +102,35 @@ fn test_kernel_main(boot_info: &'static BootInfo) -> ! {
     use memory::{self, BootInfoFrameAllocator};
     use x86_64::VirtAddr;
 
+    // #region agent log
+    serial_println!("[DBG c63425] lib::test_kernel_main entered");
+    // #endregion
+
     let phys_mem_offset = VirtAddr::new(boot_info.physical_memory_offset);
+    // #region agent log
+    serial_println!("[DBG c63425] lib::phys_mem_offset ok");
+    // #endregion
     let mut mapper = unsafe { memory::init(phys_mem_offset) };
+    // #region agent log
+    serial_println!("[DBG c63425] lib::memory::init ok");
+    // #endregion
     let mut frame_allocator = unsafe { BootInfoFrameAllocator::init(&boot_info.memory_map) };
+    // #region agent log
+    serial_println!("[DBG c63425] lib::frame_allocator ok");
+    // #endregion
     allocator::init_heap(&mut mapper, &mut frame_allocator).expect("heap initialization failed");
+    // #region agent log
+    serial_println!("[DBG c63425] lib::heap init ok; calling init()");
+    // #endregion
 
     init();
+    // #region agent log
+    serial_println!("[DBG c63425] lib::init done; calling test_main()");
+    // #endregion
     test_main();
+    // #region agent log
+    serial_println!("[DBG c63425] lib::test_main returned; exiting qemu");
+    // #endregion
     exit_qemu(QemuExitCode::Success);
     hlt_loop();
 }
