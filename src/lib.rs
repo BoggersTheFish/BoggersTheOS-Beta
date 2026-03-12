@@ -26,12 +26,36 @@ pub mod uptime;
 pub mod vga_buffer;
 
 pub fn init() {
+    // #region agent log
+    #[cfg(test)]
+    serial_println!("[DBG c63425] init: start");
+    // #endregion
     gdt::init();
+    // #region agent log
+    #[cfg(test)]
+    serial_println!("[DBG c63425] init: gdt::init ok");
+    // #endregion
     interrupts::init_idt();
+    // #region agent log
+    #[cfg(test)]
+    serial_println!("[DBG c63425] init: interrupts::init_idt ok");
+    // #endregion
     unsafe { interrupts::PICS.lock().initialize() };
+    // #region agent log
+    #[cfg(test)]
+    serial_println!("[DBG c63425] init: PICs initialize ok");
+    // #endregion
     x86_64::instructions::interrupts::enable();
+    // #region agent log
+    #[cfg(test)]
+    serial_println!("[DBG c63425] init: interrupts enabled");
+    // #endregion
     // TS RULE: kernel is alpha — register kernel node at 1.0 on boot.
     ts::init();
+    // #region agent log
+    #[cfg(test)]
+    serial_println!("[DBG c63425] init: ts::init ok");
+    // #endregion
 }
 pub trait Testable {
     fn run(&self) -> ();
