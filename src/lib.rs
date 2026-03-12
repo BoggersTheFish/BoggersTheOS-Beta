@@ -25,6 +25,13 @@ pub mod ts;
 pub mod uptime;
 pub mod vga_buffer;
 
+/// Init subset safe for `cargo test` QEMU runs of other targets (e.g. `src/main.rs` unit tests).
+/// Keeps interrupts disabled and skips TS init to avoid allocator/IRQ-related hangs during tests.
+pub fn init_for_tests() {
+    gdt::init();
+    interrupts::init_idt();
+}
+
 pub fn init() {
     // #region agent log
     #[cfg(test)]

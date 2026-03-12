@@ -50,7 +50,14 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     #[cfg(test)]
     blog_os::serial_println!("[DBG c63425] bin::heap init ok; calling blog_os::init()");
     // #endregion
-    blog_os::init();
+    #[cfg(test)]
+    {
+        blog_os::init_for_tests();
+    }
+    #[cfg(not(test))]
+    {
+        blog_os::init();
+    }
     // #region agent log
     #[cfg(test)]
     blog_os::serial_println!("[DBG c63425] bin::blog_os::init done");
