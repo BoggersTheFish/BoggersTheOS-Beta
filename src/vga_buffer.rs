@@ -195,7 +195,9 @@ fn test_println_output() {
     let s = "Some test string that fits on a single line";
     interrupts::without_interrupts(|| {
         let mut writer = WRITER.lock();
-        writeln!(writer, "\n{}", s).expect("writeln failed");
+        // Avoid `writeln!` here: it appends a trailing '\n', which resets `column_position` to 0.
+        // We only want to validate formatting/writing without relying on VGA read-back.
+        write!(writer, "\n{}", s).expect("write failed");
         // In some boot configurations (e.g. graphics modes), the legacy VGA text buffer at 0xb8000
         // may not behave like real text memory. Still validate that formatting/writing works and
         // that the writer state is consistent without relying on read-back from VGA memory.
