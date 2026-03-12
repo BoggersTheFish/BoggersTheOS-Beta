@@ -173,8 +173,20 @@ pub fn enforce_min_weight(op: &str, min_weight: f32) -> Result<(), ()> {
 
 /// Initialize TS: register kernel at 1.0. Call once during early boot.
 pub fn init() {
+    // #region agent log
+    #[cfg(test)]
+    crate::serial_println!("[DBG c63425] ts::init enter (before TS_REGISTRY.lock)");
+    // #endregion
     let mut reg = TS_REGISTRY.lock();
+    // #region agent log
+    #[cfg(test)]
+    crate::serial_println!("[DBG c63425] ts::init acquired TS_REGISTRY lock; registering kernel");
+    // #endregion
     reg.register_kernel();
+    // #region agent log
+    #[cfg(test)]
+    crate::serial_println!("[DBG c63425] ts::init register_kernel ok");
+    // #endregion
 }
 
 /// Print ASCII tree of all nodes (kernel at root). Call after init and optional fake nodes.
