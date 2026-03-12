@@ -30,11 +30,31 @@ fn kernel_main(boot_info: &'static BootInfo) -> ! {
     // #endregion
 
     let phys_mem_offset = VirtAddr::new(boot_info.physical_memory_offset);
+    // #region agent log
+    #[cfg(test)]
+    blog_os::serial_println!("[DBG c63425] bin::phys_mem_offset ok");
+    // #endregion
     let mut mapper = unsafe { memory::init(phys_mem_offset) };
+    // #region agent log
+    #[cfg(test)]
+    blog_os::serial_println!("[DBG c63425] bin::memory::init ok");
+    // #endregion
     let mut frame_allocator = unsafe { BootInfoFrameAllocator::init(&boot_info.memory_map) };
+    // #region agent log
+    #[cfg(test)]
+    blog_os::serial_println!("[DBG c63425] bin::frame_allocator ok");
+    // #endregion
 
     allocator::init_heap(&mut mapper, &mut frame_allocator).expect("heap initialization failed");
+    // #region agent log
+    #[cfg(test)]
+    blog_os::serial_println!("[DBG c63425] bin::heap init ok; calling blog_os::init()");
+    // #endregion
     blog_os::init();
+    // #region agent log
+    #[cfg(test)]
+    blog_os::serial_println!("[DBG c63425] bin::blog_os::init done");
+    // #endregion
 
     // TS: register initial subsystem nodes (kernel already at 1.0 from init())
     {
