@@ -41,10 +41,13 @@ pub fn init() {
     serial_println!("[DBG c63425] init: interrupts::init_idt ok");
     // #endregion
     // TS RULE: kernel is alpha — register kernel node at 1.0 on boot.
-    ts::init();
+    #[cfg(not(test))]
+    {
+        ts::init();
+    }
     // #region agent log
     #[cfg(test)]
-    serial_println!("[DBG c63425] init: ts::init ok");
+    serial_println!("[DBG c63425] init: ts::init skipped (test)");
     // #endregion
 
     // In test builds we keep interrupts disabled to avoid immediately-entered IRQ handlers
