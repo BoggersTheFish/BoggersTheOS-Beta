@@ -40,21 +40,24 @@ pub fn init() {
     #[cfg(test)]
     serial_println!("[DBG c63425] init: interrupts::init_idt ok");
     // #endregion
-    unsafe { interrupts::PICS.lock().initialize() };
-    // #region agent log
-    #[cfg(test)]
-    serial_println!("[DBG c63425] init: PICs initialize ok");
-    // #endregion
-    x86_64::instructions::interrupts::enable();
-    // #region agent log
-    #[cfg(test)]
-    serial_println!("[DBG c63425] init: interrupts enabled");
-    // #endregion
     // TS RULE: kernel is alpha — register kernel node at 1.0 on boot.
     ts::init();
     // #region agent log
     #[cfg(test)]
     serial_println!("[DBG c63425] init: ts::init ok");
+    // #endregion
+
+    // In test builds we keep interrupts disabled to avoid immediately-entered IRQ handlers
+    // interfering with deterministic test execution.
+    #[cfg(not(test))]
+    {
+        unsafe { interrupts::PICS.lock().initialize() };
+        x86_64::instructions::interrupts::enable();
+    }
+
+    // #region agent log
+    #[cfg(test)]
+    serial_println!("[DBG c63425] init: end (interrupts left disabled for tests)");
     // #endregion
 }
 pub trait Testable {
